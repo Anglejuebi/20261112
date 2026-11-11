@@ -355,7 +355,7 @@
         <span class="kicker">04 · 设想</span>
         <h2>三条可选路线</h2>
       </div>
-      <div class="s-body" style="align-content:center;">
+      <div class="s-body">
         <div class="cards">
           <article class="card">
             <span class="letter">A</span>
@@ -413,20 +413,32 @@
         <span class="kicker">Next</span>
         <h2>先量一量基础模型 × 中心的表示 gap</h2>
       </div>
-      <div class="s-body two-col two-col--wide-fig" style="align-content:center;">
-        <ol class="steps">
-          <li><b>固定采样</b>　统一 patch 网格与 MPP，各中心等量采样，优先同一组织类型。</li>
-          <li><b>并行多个模型</b>　DINOv2、Phikon-v2、Prov-GigaPath、UNI2-h、Virchow2，同一批 patch 全过一遍。</li>
-          <li><b>可视化</b>　UMAP / t-SNE，分别按「中心」与「类别」着色，比较两套结构的相对强弱。</li>
-          <li><b>指标</b>　中心间 silhouette、kNN 中心纯度、中心可分性 AUC、CKA / Procrustes。</li>
-        </ol>
-        <div class="txt">
-          <p class="note" style="margin-bottom:0.8em;">判据</p>
-          <ul class="pts">
-            <li>中心可分性 ≫ 类别可分性：先做域适配，走 A 或 C。</li>
-            <li>类别结构被中心淹没：先做像素 / 染色归一化，再谈 adapter。</li>
-            <li>模型之间的差异已经大于任何适配收益：先换模型，不做适配。</li>
-          </ul>
+      <div class="s-body" style="grid-template-rows:minmax(0,1fr) auto; gap:1.5em;">
+        <div class="quad">
+          <article class="q">
+            <span class="qn">01</span>
+            <h3>固定采样</h3>
+            <p>统一 patch 网格与 MPP，各中心等量采样，优先同一组织类型，避免把组织结构差异读成域差异。</p>
+          </article>
+          <article class="q">
+            <span class="qn">02</span>
+            <h3>并行多个模型</h3>
+            <p>DINOv2、Phikon-v2、Prov-GigaPath、UNI2-h、Virchow2，同一批 patch 全部过一遍，比较各自的 gap。</p>
+          </article>
+          <article class="q">
+            <span class="qn">03</span>
+            <h3>可视化</h3>
+            <p>UMAP / t-SNE，分别按「中心」与「类别」着色，看两套结构的相对强弱。</p>
+          </article>
+          <article class="q">
+            <span class="qn">04</span>
+            <h3>量化指标</h3>
+            <p>中心间 silhouette、kNN 中心纯度、中心可分性 AUC、CKA / Procrustes 对齐度。</p>
+          </article>
+        </div>
+        <div class="band">
+          <span class="lbl">判据</span>
+          <p>中心可分性 ≫ 类别可分性 → 先做域适配，走 A 或 C；类别结构被中心淹没 → 先做像素 / 染色归一化，再谈 adapter；模型之间的差异已经大于任何适配收益 → 先换模型。</p>
         </div>
       </div>
       <div class="s-foot">
