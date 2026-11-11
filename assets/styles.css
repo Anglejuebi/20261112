@@ -651,9 +651,9 @@ ul.notes > li b { font-weight: 600; color: var(--ink); }
 ul.notes > li i { font-style: italic; }
 ul.notes--stack {
   grid-template-columns: minmax(0, 1fr);
-  align-self: start;
-  align-content: start;
-  gap: 1.15em;
+  align-self: stretch;
+  align-content: center;
+  gap: 2.4em;
   border-left: 1px solid var(--line);
   padding-left: 1.6em;
 }
