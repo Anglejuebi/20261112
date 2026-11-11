@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>从任务级泛化到中心级适配 · 文献调研汇报 2026.11.12</title>
+<meta name="description" content="计算病理基础模型跨中心泛化的文献调研：in-context learning、内部 Adapter、测试时训练三条路线的监督信号来源，以及以「中心」为适配单元的想法与下一步特征可视化方案。">
+<meta name="author" content="组会汇报 2026.11.12">
+<meta property="og:title" content="从任务级泛化到中心级适配">
+<meta property="og:description" content="三条路线回答同一个问题：监督信号从哪里来。">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23faf8f5'/%3E%3Crect x='7' y='9' width='4' height='14' fill='%239b3b4a'/%3E%3Crect x='14' y='9' width='4' height='14' fill='%233f4780'/%3E%3Crect x='21' y='9' width='4' height='14' fill='%23d2c9bc'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<div class="progress" aria-hidden="true"><i id="bar"></i></div>
+
+<header class="hud">
+  <div class="brand"><span class="dot" aria-hidden="true"></span><span>文献调研 · 2026.11.12</span></div>
+  <div class="chapter" id="chapter">封面</div>
+</header>
+
+<nav class="rail" id="rail" aria-label="页码导航"></nav>
+
+<main class="deck" id="deck">
+
+  <!-- ═════════ 01 封面 ═════════ -->
+  <section class="slide cover is-active" data-chapter="封面">
+    <div class="stage">
+      <div class="cover-grid">
+        <div>
+          <span class="kicker">计算病理 · 基础模型 · 跨中心泛化</span>
+          <h1>从「任务级泛化」<br>到<em>「中心级适配」</em></h1>
+          <p class="lead">三条已有路线——上下文学习、内部 Adapter、测试时训练——回答的其实是同一个问题：<strong>监督信号从哪里来</strong>。我的判断是：把有限的标注花在「中心」而不是「任务」上，可能是更划算的适配单元。</p>
+          <div class="meta">
+            <div><b>7</b>篇工作</div>
+            <div><b>3</b>条路线</div>
+            <div><b>1</b>个下一步实验</div>
+          </div>
+        </div>
+        <aside class="cover-side">
+          <dl>
+            <dt>汇报</dt>
+            <dd>文献调研 · 组会</dd>
+            <dt>日期</dt>
+            <dd>2026.11.12</dd>
+            <dt>阅读顺序</dt>
+            <dd>In-context → Adapter → TTT → 我的想法</dd>
+            <dt>贯穿判据</dt>
+            <dd>要不要标注 · 要不要 decoder · 改不改权重 · 适配单元是任务还是中心</dd>
+          </dl>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ 02 主线 ═════════ -->
+  <section class="slide" data-chapter="调研主线">
+    <div class="stage">
+      <div class="s-head">
+        <span class="kicker">Roadmap</span>
+        <h2>三条路线的分野，在「监督信号」与「适配单元」</h2>
+      </div>
+      <div class="s-body" style="grid-template-rows:auto auto;">
+        <div class="route">
+          <article class="route-card">
+            <span class="idx">01</span>
+            <h3>In-context learning</h3>
+            <p class="meta"><b>监督来源</b>：带标注的示例（prompt）<br><b>改什么</b>：不改权重，推理时检索与提示<br><b>适配单元</b>：任务，或单个查询样本</p>
+            <p class="rep">Ferber 2024 · PRET 2026</p>
+          </article>
+          <article class="route-card">
+            <span class="idx">02</span>
+            <h3>Internal adapter</h3>
+            <p class="meta"><b>监督来源</b>：标注，或无标签重建目标（需 decoder）<br><b>改什么</b>：只训 adapter / LoRA，主干冻结<br><b>适配单元</b>：任务</p>
+            <p class="rep">AdaptFormer · ExPLoRA · SLR · PathPT</p>
+          </article>
+          <article class="route-card">
+            <span class="idx">03</span>
+            <h3>Test-time training</h3>
+            <p class="meta"><b>监督来源</b>：无标签辅助任务<br><b>改什么</b>：测试时更新 adapter<br><b>适配单元</b>：测试样本</p>
+            <p class="rep">COMPAYL TTT 2026</p>
+          </article>
+        </div>
+        <div class="band" style="align-self:start;">
+          <span class="lbl">共同约束</span>
+          <p>三条路线都没有直接建模「中心」这一层：适配单元是任务、是模型、是测试样本，而不是中心。</p>
+        </div>
+      </div>
+      <div class="s-foot">
+        <p class="note">读法：先看每篇工作的监督信号从哪来，再看它把适配写进了哪里。前者决定可扩展性，后者决定代价。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ 03 Ferber ═════════ -->
+  <section class="slide" data-chapter="In-context learning">
+    <div class="stage">
+      <div class="s-head">
+        <span class="kicker">01 · In-context learning</span>
+        <h2>把 patch 交给通用多模态 LLM，用文本 prompt 做分类</h2>
+      </div>
+      <div class="s-body two-col two-col--wide-fig">
+        <figure class="fig fig--tall">
+          <img src="assets/figs/fig-ferber.jpg" alt="Ferber 等： GPT-4V 在病理 patch 上的四种分类设置：零样本、few-shot 随机采样、few-shot kNN 采样、ImageNet 迁移学习">
+          <figcaption><b>Ferber et al., Nat Commun 2024, Fig. 1B（原文截图）。</b>四种设置：零样本 / few-shot 随机示例 / few-shot kNN 检索示例 / ImageNet 迁移学习基线。</figcaption>
+        </figure>
+        <div class="txt">
+          <ul class="pts">
+            <li>把 H&amp;E 病理 patch 直接输入 GPT-4V，用自然语言描述候选组织类别，让模型给出类别与判断理由。</li>
+            <li><b>零样本</b>只给任务描述；<b>few-shot</b> 从训练集中挑 k 个带标签示例；<b>kNN 采样</b>先用特征检索最相似的示例，再交给 LLM。</li>
+            <li>图示结果：加入示例后判断更稳；而「挑哪些示例」显著影响提示质量——检索发生在特征空间里。</li>
+          </ul>
+          <p class="note" style="margin-top:1em;"><b>证据</b>：原文图示（Fig. 1B），未读 Methods。该工作是 patch 级、通用多模态 LLM，不是病理基础模型，也未做多中心外部验证。</p>
+        </div>
+      </div>
+      <div class="s-foot">
+        <p class="takeaway"><span class="lbl">我的判断</span>零样本确实不需要标注；但一旦使用示例，<b>示例本身就是标注</b>。而 kNN 采样把问题引向了特征空间——这已经是「表示」问题，不再是「提示词」问题。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ 04 PRET ═════════ -->
+  <section class="slide" data-chapter="In-context learning">
+    <div class="stage">
+      <div class="s-head">
+        <span class="kicker">01 · In-context learning</span>
+        <h2>把「每中心几张标注切片」做成推理接口</h2>
+      </div>
+      <div class="s-body two-col">
+        <figure class="fig">
+          <img src="assets/figs/fig-pret.jpg" alt="PRET：冻结特征提取器 + in-context tagger / classifier；支持肿瘤分割、筛查与转移检测、亚型分类；右侧为与少样本基线的雷达对比">
+          <figcaption><b>PRET, Nat Cancer 2026, Fig. 2d–e（原文截图）。</b>左：示例 + in-context 标注 / 分类 / 聚合的三类切片级任务；右：与 MI-SimpleShot、KNN-Mean、MI-Prototype 的对比。</figcaption>
+        </figure>
+        <div class="txt">
+          <ul class="pts">
+            <li><b>training-free</b>：冻结特征提取器，用 support 示例在推理时构造 in-context 标注器与分类器，再由后处理或 attention aggregator 输出切片结论。</li>
+            <li>覆盖三类切片级任务：肿瘤分割、筛查与转移检测、亚型分类。</li>
+            <li>与少样本基线相比，示例带来的提升是稳定的；但它并不更新任何参数。</li>
+          </ul>
+          <p class="note" style="margin-top:1em;"><b>证据</b>：摘要 + 图示，付费 Methods 未读。标题中的 “without example training” 指不做训练，<b>不等于不需要带标注的示例</b>。</p>
+        </div>
+      </div>
+      <div class="s-foot">
+        <p class="takeaway"><span class="lbl">我的判断</span>它证明了「少量标注切片即可定义一个中心的判定规则」是可行的；但域偏移只能在推理时被<b>看见</b>，不能被<b>吸收</b>——除非 support 恰好覆盖了偏移。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ 05 Adapter 总览 ═════════ -->
+  <section class="slide" data-chapter="Internal adapter">
+    <div class="stage">
+      <div class="s-head">
+        <span class="kicker">02 · Internal adapter</span>
+        <h2>Adapter：把适配写进权重，但监督信号不能凭空产生</h2>
+      </div>
+      <div class="s-body" style="grid-template-rows:auto auto; gap:2.4em; align-content:start;">
+        <table class="cmp">
+          <thead>
+            <tr><th style="width:21%;">方法</th><th style="width:29%;">适配位置</th><th style="width:28%;">监督信号从哪来</th><th style="width:22%;">代价 / 备注</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>AdaptFormer<span class="sub">NeurIPS 2022</span></td>
+              <td>MLP 旁路瓶颈，残差缩放后相加</td>
+              <td class="sig">标注（监督式分类）</td>
+              <td>结构最简，&lt; 2% 额外参数</td>
+            </tr>
+            <tr>
+              <td>ExPLoRA<span class="sub">ICML 2025</span></td>
+              <td>后段整块解冻 + Q/V LoRA + 全部 LayerNorm 可训</td>
+              <td class="sig">无标签自监督（MAE / DINOv2 重建目标）；之后可选标注 probe</td>
+              <td>需要足够多的无标签目标域数据</td>
+            </tr>
+            <tr>
+              <td>SLR<span class="sub">CVPR 2024</span></td>
+              <td>qkv / MLP 线性变换上的低秩缩放</td>
+              <td class="sig">无标签 MAE（需 decoder）→ 有标签任务微调</td>
+              <td>两阶段；adapter 与 decoder 配套</td>
+            </tr>
+            <tr>
+              <td>PathPT<span class="sub">Nat Commun 2026</span></td>
+              <td>空间聚合模块 + 可学习文本提示</td>
+              <td class="sig">标注（tile 级）</td>
+              <td>需要成熟 VL 编码器</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="band" style="align-self:start;">
+          <span class="lbl">共同点</span>
+          <p>四篇在「改哪里」上各不相同，在「信号从哪来」上完全一致：要么人给标签，要么用重建 / 对比目标从无标签数据里造监督。</p>
+        </div>
+      </div>
+      <div class="s-foot">
+        <p class="note">这也是我对「纯 Adapter 创新」持保留意见的原因：结构可以换，信号来源换不了。真正稀缺的是中心层面的监督。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ 06 AdaptFormer ═════════ -->
+  <section class="slide" data-chapter="Internal adapter">
+    <div class="stage">
+      <div class="s-head">
+        <span class="kicker">02 · Internal adapter</span>
+        <h2>最小改动：只给 MLP 加一条旁路</h2>
+      </div>
+      <div class="s-body two-col">
+        <figure class="fig">
+          <img src="assets/figs/fig-adaptformer.jpg" alt="AdaptFormer：将 ViT block 中的 MLP 替换为 AdaptMLP，包含冻结分支与可训练的 down-up 瓶颈">
+          <figcaption><b>AdaptFormer, NeurIPS 2022, Fig. 2（原文截图）。</b>左：全量微调；中：AdaptFormer 微调；右：AdaptMLP 内部——冻结分支 + 可训练 down → up 瓶颈 + 缩放。</figcaption>
+        </figure>
+        <div class="txt">
+          <ul class="pts">
+            <li>冻结原 ViT 的 MHSA 与 MLP；在 MLP 旁并联一条 <b>down → GELU → up</b> 的瓶颈，输出乘以缩放系数 s 后与冻结分支残差相加。</li>
+            <li>只训练瓶颈与缩放，主干权重完全不动；额外参数 &lt; 2%。</li>
+            <li>模块与 block 解耦，可插到任意深度——这正是后面「块 7–11 串联」构想的出处。</li>
+          </ul>
+          <p class="note" style="margin-top:1em;"><b>证据</b>：摘要 + 图示。原论文实验是监督式图像 / 视频识别，<b>不能</b>作为「无标签跨中心适配」的证据。</p>
+        </div>
+      </div>
+      <div class="s-foot">
+        <p class="takeaway"><span class="lbl">我的判断</span>它是「内部 adapter」的事实标准，也是最省的一条；但它回答的是「怎么少改参数」，没有回答「标注从哪来」。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ 07 ExPLoRA ═════════ -->
+  <section class="slide" data-chapter="Internal adapter">
+    <div class="stage">
+      <div class="s-head">
+        <span class="kicker">02 · Internal adapter</span>
+        <h2>在目标域上「续训」：解冻一块，LoRA 其余</h2>
+      </div>
+      <div class="s-body two-col">
+        <figure class="fig">
+          <img src="assets/figs/fig-explora.jpg" alt="ExPLoRA：ViT block 分为完全解冻集合 U 与仅 Q、V 上加 LoRA 的集合，LayerNorm 全部解冻，用 MAE 或 DINOv2 目标续训">
+          <figcaption><b>ExPLoRA, ICML 2025, Fig. 2（原文截图）。</b>上：整块解冻的 block；下：仅在 Q、V 上加 LoRA；归一化层始终可训；右侧接 MAE 或 DINOv2 decoder。</figcaption>
+        </figure>
+        <div class="txt" style="display:flex; flex-direction:column; gap:0.9em;">
+          <ul class="pts">
+            <li>把 L 个 block 分成 <b>U</b>（整块解冻）与 <b>L\U</b>（仅 Q、V 上加 LoRA），所有 LayerNorm 解冻。</li>
+            <li>用<b>原始自监督目标</b>（MAE 或 DINOv2）在无标签目标域图像上继续训练，再接线性 probe 或 LoRA 微调。</li>
+          </ul>
+          <ul class="datalist">
+            <li><span class="k">ViT-B · fMoW</span><span class="v">last-1 linear probe <b>63.62 → 74.72</b>（+9.21）；last-4 <b>65.90 → 75.11</b></span></li>
+            <li><span class="k">Camelyon17</span><span class="v">病理 patch 上仅 <b>+1.1 ~ +1.2</b></span></li>
+            <li><span class="k">数据量</span><span class="v">无标签样本 &gt; 50k 才明显受益；SpaceNet 6k 仅与 LoRA 持平</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="s-foot">
+        <p class="takeaway"><span class="lbl">我的判断</span>域差大、无标签数据充足时，这是目前最强的一条；但在病理 patch 的域偏移上收益很小。这正是「先量一量域 gap 有多大」的理由。</p>
+        <p class="note"><b>证据</b>：全文（ICML 版 PDF），数字取自正文与附录 B.5 的 ViT-B 消融。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ 08 SLR ═════════ -->
+  <section class="slide" data-chapter="Internal adapter">
+    <div class="stage">
+      <div class="s-head">
+        <span class="kicker">02 · Internal adapter</span>
+        <h2>与我的设想几乎同构：adapter + MAE 自监督</h2>
+      </div>
+      <div class="s-body two-col">
+        <figure class="fig">
+          <img src="assets/figs/fig-slr.jpg" alt="SLR：基础模型训练、插入 SLR adapter、目标域无标签 MAE 适配、有标签任务微调四步">
+          <figcaption><b>SLR, CVPR 2024, Fig. 2（原文截图）。</b>0 源域预训练 → 1 插入 SLR adapter → 2 目标域无标签 MAE 适配（需 decoder）→ 3 有标签任务微调。</figcaption>
+        </figure>
+        <div class="txt">
+          <ol class="steps">
+            <li><b>源域预训练</b>：常规自监督（MAE）得到基础模型。</li>
+            <li><b>插入 SLR adapter</b>：加在 qkv 与 MLP 的线性变换上，低秩缩放，主干冻结。</li>
+            <li><b>无标签域适配</b>：用目标域无标签图像做 MAE 重建，只更新 adapter——这一步必须有 decoder。</li>
+            <li><b>有标签任务微调</b>：接上任务头，用少量标注完成目标任务。</li>
+          </ol>
+          <p class="note" style="margin-top:0.6em;"><b>作者报告</b>：8 个遥感数据集线性评估 +4~6 点，可训练参数 1~2%，与 300M ViT-L 全量微调相当。</p>
+        </div>
+      </div>
+      <div class="s-foot">
+        <p class="takeaway"><span class="lbl">我的判断</span>可行性证据，<b>也是撞车证据</b>：内部 adapter + 无标签目标域自监督在遥感领域已经成立。如果要做，差别必须在「领域」之外找——比如适配单元、标注层级，或病理特有的中心结构。</p>
+        <p class="note"><b>证据</b>：摘要 + 作者方法说明，CVPR 版全文未逐条核验。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ 09 PathPT ═════════ -->
+  <section class="slide" data-chapter="Internal adapter">
+    <div class="stage">
+      <div class="s-head">
+        <span class="kicker">02 · Internal adapter</span>
+        <h2>VL 引导：让模型知道「哪里值得看」</h2>
+      </div>
+      <div class="s-body" style="grid-template-rows:auto auto; gap:1.5em;">
+        <figure class="fig">
+          <img src="assets/figs/fig-pathpt.jpg" alt="PathPT：冻结 patch encoder、可训练空间聚合模块、冻结文本编码器与可学习提示，输出 tile 分类并可给出癌症区域定位">
+          <figcaption><b>PathPT, Nat Commun 2026, Fig. 1a–b（原文截图）。</b>左：常规 MIL 需要训练切片级编码器；右：PathPT 冻结 patch / 文本编码器，只训空间聚合模块与可学习提示。</figcaption>
+        </figure>
+        <div class="txt" style="display:grid; grid-template-columns:1fr 1fr; gap:2.2em;">
+          <ul class="pts">
+            <li>patch encoder <b>冻结</b>，空间聚合模块可训练；文本侧拼上可学习提示 <span style="font-variant-numeric:tabular-nums;">T₁…T_K, CLS</span>，文本编码器同样冻结。</li>
+            <li>视觉提供空间证据，语言提供语义先验；两者对齐后，模型能把注意力放到肿瘤区域，并给出区域定位。</li>
+          </ul>
+          <ul class="pts">
+            <li>少样本稀有肿瘤亚型场景：每个任务只需少量带标注 tile，而不是重训整个切片级编码器。</li>
+            <li>对我们的启示：可以借一个成熟 VL 编码器给目标域 patch 打分，把 adapter 的容量集中到关键 patch 上。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="s-foot">
+        <p class="takeaway"><span class="lbl">我的判断</span>它把「引导」变成了可训练的信号，但依赖<b>带标注的 tile</b>；这与「纯视觉伪标签打分」是两条不同的路——后者不需要标注，代价是噪声。</p>
+        <p class="note"><b>证据</b>：全文；附带代码阅读发现 1D 卷积 + Nyström attention 与论文二维空间表述不完全一致，复现时需以代码为准。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ 10 TTT 方法 ═════════ -->
+  <section class="slide" data-chapter="Test-time training">
+    <div class="stage">
+      <div class="s-head">
+        <span class="kicker">03 · Test-time training</span>
+        <h2>完全无标签：测试时只更新 adapter</h2>
+      </div>
+      <div class="s-body two-col two-col--wide-fig">
+        <figure class="fig">
+          <img src="assets/figs/fig-ttt-method.jpg" alt="COMPAYL TTT：冻结基础模型 F，adapter A 接收嵌入，分类头与辅助头；测试时用辅助损失更新 adapter，最后用分类头预测">
+          <figcaption><b>Klöckner et al., MICCAI 2026 COMPAYL, Fig. 1A–C（原文截图）。</b>F 冻结、A 可训；测试时先用辅助任务更新 A，再用分类头输出。</figcaption>
+        </figure>
+        <div class="txt">
+          <ul class="pts">
+            <li>冻结基础模型 F；adapter A 先在离线阶段训好；分类头 H<sub>cls</sub> 与辅助头 H<sub>aux</sub> 分开。</li>
+            <li>测试时对每个样本做 K 步：<span style="font-family:var(--font-mono); font-size:0.92em;">z = F(x) → z̃ = A(z) → 用 L<sub>aux</sub> 更新 A</span>，F 不更新。</li>
+            <li>两个辅助任务：<b>AuxSeg</b>（细胞核分割，需轻量 decoder）、<b>AuxMag</b>（放大倍率 18× / 20× / 22× 分类）。</li>
+          </ul>
+          <p class="note" style="margin-top:1em;">这是「最便宜」的适配：不需要任何标注，也不需要重训主干；代价是辅助目标必须真的与分类目标相关。</p>
+        </div>
+      </div>
+      <div class="s-foot">
+        <p class="takeaway"><span class="lbl">问题</span>辅助任务与分类任务对齐吗？如果不对齐，测试时的每一步更新都在把表示推向一个「更容易做辅助任务」的方向。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ 10b TTT 辅助任务 ═════════ -->
+  <section class="slide" data-chapter="Test-time training">
+    <div class="stage">
+      <div class="s-head">
+        <span class="kicker">03 · Test-time training</span>
+        <h2>「免费」的辅助任务，长什么样</h2>
+      </div>
+      <div class="s-body two-col two-col--wide-fig">
+        <figure class="fig">
+          <img src="assets/figs/fig-ttt-aux.jpg" alt="COMPAYL 的两种辅助任务：AuxSegTTT 用 HistoPlus 预提取的细胞核分割作辅助标签，轻量 decoder 重建核预测；AuxMagTTT 预测 18 倍、20 倍、22 倍放大倍率">
+          <figcaption><b>同文 Fig. 2（原文截图）。</b>左：AuxSegTTT，用 HistoPlus 预提取的细胞核分割作辅助标签，轻量 decoder 从适配后的嵌入重建；右：AuxMagTTT，把图像自带的放大倍率（18× / 20× / 22×）当作辅助分类目标。</figcaption>
+        </figure>
+        <div class="txt">
+          <ul class="pts">
+            <li>两种辅助标签都<b>不是人工标注</b>：细胞核分割来自现成模型（HistoPlus），放大倍率来自图像采集信息。</li>
+            <li>代价只是转移了位置：AuxSeg 需要一个 decoder，AuxMag 需要一个额外的分类头，两者都要在离线阶段用源数据训好。</li>
+            <li>所以「无标注」省下的是病理医生的标注，付出的是「辅助任务与分类目标是否对齐」的风险。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="s-foot">
+        <p class="takeaway"><span class="lbl">我的判断</span>辅助任务越容易「从图像里白拿」，越可能只是与诊断无关的浅层属性；用它去更新适配器，等于把表示往那个属性上拉。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ 11 TTT 结果 ═════════ -->
+  <section class="slide" data-chapter="Test-time training">
+    <div class="stage">
+      <div class="s-head">
+        <span class="kicker">03 · Test-time training</span>
+        <h2>负结果：无标注 ≠ 免费</h2>
+      </div>
+      <div class="s-body two-col two-col--wide-fig">
+        <figure class="fig">
+          <img src="assets/figs/fig-ttt-results.jpg" alt="六个 DINOv2 系基础模型在 Camelyon 与 Tolkach-ESCA 上的 F1：baseline、AuxSeg、AuxSegTTT、AuxMag、AuxMagTTT 等设置">
+          <figcaption><b>同文 Fig. 4（原文截图）。</b>六个基础模型 × 两个数据集；圆点为无偏切分训练，三角为有偏切分训练。</figcaption>
+        </figure>
+        <div class="txt">
+          <ul class="pts">
+            <li>AuxSeg / AuxMag 的 TTT <b>都没有稳定超过 baseline</b>；相对「只做多任务训练」，额外的测试时更新的增益可以忽略。</li>
+            <li><b>基础模型之间的差异，远大于 TTT 带来的差异。</b></li>
+            <li>同一批实验里，有偏切分训练造成的 F1 落差为 0.049（Virchow2）~ 0.369（Phikon-v2），量级远大于 TTT 的改动。</li>
+            <li>个别组合确实变好（Virchow2 + AuxMag，NCT 0.77 → 0.90），但另一些明显变差（Phikon-v2 + AuxSeg，0.90 → 0.73；Prov-GigaPath + AuxMag，Chaoyang 0.87 → 0.70）。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="s-foot">
+        <p class="takeaway"><span class="lbl">我的判断</span>选哪个基础模型，比加不加 TTT 更重要；而「无标注」并不等于「无代价」。这让我们把注意力从「怎么免标注」转向「<b>标注该花在哪一层</b>」。</p>
+        <p class="note"><b>证据</b>：全文，Fig. 4；workshop paper，patch 级，单一学习率经网格搜索确定。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ 12 我的想法 ═════════ -->
+  <section class="slide" data-chapter="我的想法">
+    <div class="stage">
+      <div class="s-head">
+        <span class="kicker">04 · Proposal</span>
+        <h2>把适配单元从「任务」换成「中心」</h2>
+      </div>
+      <div class="s-body" style="grid-template-rows:auto auto; gap:1.5em;">
+        <div class="cards">
+          <article class="card">
+            <span class="letter">A</span>
+            <h3>内部 adapter 的小样本微调</h3>
+            <p>在 block 7–11 之后串联 bottleneck adapter（或 LoRA），冻结主干，用每个中心 ≤ 10 张带标注切片做监督微调；每个中心一套参数。</p>
+            <p class="risk"><b>风险</b>：信号太少，容易只拟合到切片级伪影；必须用微调后的下游分析判断特征是否真的更适配。</p>
+          </article>
+          <article class="card">
+            <span class="letter">B</span>
+            <h3>多中心 patch / 肿瘤区域级标注</h3>
+            <p>把标注从「任务标签」上移到「中心内的结构」——肿瘤区、正常区、间质；用分割 / 定位作为共享的中间监督，让适配针对中心而不是针对任务。</p>
+            <p class="risk"><b>风险</b>：标注成本最高；但一旦拥有，就是最直接、且可跨任务复用的域对齐信号。</p>
+          </article>
+          <article class="card">
+            <span class="letter">C</span>
+            <h3>VL 引导或纯视觉伪标签打分</h3>
+            <p>用成熟 VL 编码器（PathPT 式）或视觉置信度为 target patch 打分，把 adapter 的容量集中在目标域的关键 patch 上。</p>
+            <p class="risk"><b>风险</b>：伪标签噪声会自我强化；需要门控、校准与源域锚定，否则越训越偏。</p>
+          </article>
+        </div>
+        <div class="band">
+          <span class="lbl">共同前提</span>
+          <p>先诊断「域 gap 有多大、落在哪一层」，再决定适配发生在像素层、表示层还是决策层——而不是先选一个模块。</p>
+        </div>
+      </div>
+      <div class="s-foot">
+        <p class="note">三条路线并不互斥：A 是低成本起点，B 是信号升级，C 是引导机制；但都需要同一个前置证据。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ 13 构想草图 ═════════ -->
+  <section class="slide" data-chapter="我的想法">
+    <div class="stage">
+      <div class="s-head">
+        <span class="kicker">04 · Proposal</span>
+        <h2>一个可先验证的构想：只训 Adapter 的跨中心微调</h2>
+      </div>
+      <div class="s-body two-col two-col--wide-fig">
+        <figure class="fig">
+          <img src="assets/figs/fig-idea-sketch.jpg" alt="构想示意图：冻结 ViT-B，在 block 7 至 11 之后串联中心特异的 bottleneck adapter，仅训练 adapter">
+          <figcaption><b>构想草图</b>（AI 生成的示意图，<b>不是实验结果</b>）。冻结 ViT-B；Block 7–11 后各串联一个 bottleneck adapter；每中心独立一套 adapter；Patch Embedding、Transformer 块、LayerNorm、MIL 聚合器与分类头全部冻结。</figcaption>
+        </figure>
+        <div class="txt">
+          <ul class="pts">
+            <li><b>只训 adapter</b>：梯度只回到橙色的瓶颈模块，主干与分类头保持源域语义。</li>
+            <li><b>每中心一套参数</b>：适配的对象是中心，而不是任务；同一任务在不同中心可以有不同的 adapter。</li>
+            <li><b>为什么放 7–11</b>：后段 block 的表示更接近任务语义，改动代价小、对源域的破坏也更可控（这是待验证的假设，不是结论）。</li>
+          </ul>
+          <p class="note" style="margin-top:1em;"><b>失败判据</b>：目标中心的提升小于源中心的损失；或提升只出现在染色深浅、扫描仪等切片级伪影上。</p>
+        </div>
+      </div>
+      <div class="s-foot">
+        <p class="takeaway"><span class="lbl">诚实说明</span>这只是待验证的假设。ExPLoRA 与 SLR 已经证明「内部 adapter + 自监督 / 标注」在各自领域可行；我们要验证的是<b>「以中心为适配单元、且样本极少」</b>这一设定下是否仍然成立。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ 14 下一步 ═════════ -->
+  <section class="slide" data-chapter="下一步">
+    <div class="stage">
+      <div class="s-head">
+        <span class="kicker">Next</span>
+        <h2>先量一量：基础模型 × 中心的表示 gap</h2>
+      </div>
+      <div class="s-body two-col">
+        <div class="txt">
+          <ol class="steps">
+            <li><b>固定采样</b>：统一 patch 网格与 MPP，每个中心等量采样，优先同一组织类型，避免把组织构成差异误读为域差异。</li>
+            <li><b>多个基础模型并行</b>：DINOv2 / Phikon-v2 / Prov-GigaPath / UNI2-h / Virchow2（按可得性），同一批 patch 全部过一遍。</li>
+            <li><b>降维可视化</b>：UMAP / t-SNE，分别按「中心」与「类别」着色，看两套结构的相对强弱。</li>
+            <li><b>量化指标</b>：中心间 silhouette、kNN 中心纯度、中心可分性 AUC、CKA / Procrustes 对齐度、类内 / 类间距离比。</li>
+          </ol>
+        </div>
+        <div class="txt">
+          <p style="font-size:0.78em; letter-spacing:0.16em; text-transform:uppercase; color:var(--faint); margin-bottom:0.7em;">判据</p>
+          <ul class="pts">
+            <li><b>中心可分性 ≫ 类别可分性</b>：表示层适配优先，走 A 或 C。</li>
+            <li><b>类别结构被中心淹没</b>：先做像素 / 染色归一化，再谈 adapter。</li>
+            <li><b>中心内部方差不均</b>：需要按中心标准化，或用稳健原型而非简单均值。</li>
+          </ul>
+          <p class="note" style="margin-top:1.2em;">这一步不产生结论，只产生「往哪条路走」的依据。若几个基础模型的域 gap 都很小，那么 A / B / C 的收益上限也就有限——这本身是一个有用的负结果。</p>
+        </div>
+      </div>
+      <div class="s-foot">
+        <p class="takeaway"><span class="lbl">顺序</span>先诊断 → 再选适配层 → 最后才是具体的 adapter 结构。反过来做，很容易把「域 gap 很小」误判成「模块有效」。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ 15 参考文献 ═════════ -->
+  <section class="slide" data-chapter="参考文献">
+    <div class="stage">
+      <div class="s-head">
+        <span class="kicker">References</span>
+        <h2>参考文献与证据等级</h2>
+      </div>
+      <div class="s-body">
+        <ol class="refs">
+          <li>Ferber, D., Wölflein, G., Wiest, I. C., Ligero, M., Sainath, S., Ghaffari Laleh, N., … Kather, J. N. (2024). In-context learning enables multimodal large language models to classify cancer pathology images. <i>Nature Communications</i>, 15, 10104. <a href="https://doi.org/10.1038/s41467-024-51465-9">doi:10.1038/s41467-024-51465-9</a><span class="ev">证据：图示</span></li>
+          <li>Li, Y., Ning, Z., Xiang, T., Zhang, Q., Lin, Z., Yi, M., … Li, X. (2026). PRET is a few-shot system for pan-cancer recognition without example training. <i>Nature Cancer</i>. <a href="https://www.nature.com/articles/s43018-026-01141-2">nature.com/articles/s43018-026-01141-2</a><span class="ev">证据：摘要 + 图示</span></li>
+          <li>Chen, S., Ge, C., Tong, Z., Wang, J., Song, Y., Wang, J., &amp; Luo, P. (2022). AdaptFormer: Adapting vision transformers for scalable visual recognition. <i>NeurIPS</i> 35, 16664–16678. <a href="https://arxiv.org/abs/2205.13535">arXiv:2205.13535</a><span class="ev">证据：摘要 + 图示</span></li>
+          <li>Khanna, S., Irgau, M., Lobell, D. B., &amp; Ermon, S. (2025). ExPLoRA: Parameter-efficient extended pre-training to adapt vision transformers under domain shifts. <i>ICML</i>. <a href="https://arxiv.org/abs/2406.10973">arXiv:2406.10973</a><span class="ev">证据：全文</span></li>
+          <li>Scheibenreif, L., Mommert, M., &amp; Borth, D. (2024). Parameter efficient self-supervised geospatial domain adaptation. <i>CVPR</i>, 27841–27851. <a href="https://openaccess.thecvf.com/content/CVPR2024/html/Scheibenreif_Parameter_Efficient_Self-Supervised_Geospatial_Domain_Adaptation_CVPR_2024_paper.html">CVPR 2024 open access</a><span class="ev">证据：摘要 + 方法说明</span></li>
+          <li>He, D., Zhou, X., Guan, W., Zhang, L., Zhang, X., Xu, S., … Xie, W. (2026). Boosting pathology foundation models via few-shot prompt-tuning for rare cancer subtyping. <i>Nature Communications</i>. <a href="https://www.nature.com/articles/s41467-026-71715-2">nature.com/articles/s41467-026-71715-2</a><span class="ev">证据：全文</span></li>
+          <li>Klöckner, P., Georgiou, E., Nazarian, J., Zlobec, I., &amp; Brüningk, S. (2026). Investigating test-time training for patch classification in pathology. <i>MICCAI 2026 Workshops (COMPAYL)</i>, LNCS 17251. <a href="https://papers.miccai.org/miccai-2026-sat/COMPAYL_037.html">papers.miccai.org</a><span class="ev">证据：全文</span></li>
+        </ol>
+      </div>
+      <div class="s-foot">
+        <p class="note"><b>说明</b>：配图取自原文，版权归原作者与出版方所有，仅用于学术汇报；文中数字均来自原文或作者报告，未做独立复现。「证据等级」按本次实际读到的内容标注：全文 / 摘要 / 图示。</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div class="counter" aria-hidden="true"><span class="cur" id="cur">01</span><span>/</span><span id="total">15</span></div>
+<div class="hint" id="hint">滚动或 ↑ ↓ 翻页 · 点击图片可放大</div>
+<script src="assets/app.js"></script>
+</body>
+</html>
