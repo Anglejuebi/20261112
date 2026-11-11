@@ -1,6 +1,6 @@
-# 从「任务级泛化」到「中心级适配」
+# 计算病理基础模型的跨中心适配
 
-组会文献调研汇报（2026.11.12）：计算病理基础模型在跨中心场景下的三条已有路线，以及一个关于「适配单元应该是中心而不是任务」的构想。
+组会文献调研汇报（2026.11.12）：计算病理基础模型在跨中心场景下的三条已有路线（in-context learning、内部 adapter、测试时训练），以及一个以中心为适配单元、只用每中心 ≤ 10 张标注切片的构想，最后给出第一步表示 gap 诊断。
 
 - 在线版本：<https://anglejuebi.github.io/20261112/>
 - 源码：单页 HTML + CSS + 原生 JS，无构建、无外部请求、字体自托管。
@@ -9,9 +9,9 @@
 
 | 页 | 内容 |
 | --- | --- |
-| 01 | 封面：三条路线的共同问题——监督信号从哪来 |
-| 02 | 路线图：ICL / Internal adapter / TTT 的分野与共同约束 |
-| 03–04 | In-context learning：Ferber et al. 2024（GPT-4V，patch 级）、PRET（切片级，需示例标注） |
+| 01 | 封面 |
+| 02 | 路线图：三条路线的监督信号与适配单元对比 |
+| 03–04 | In-context learning：Ferber et al. 2024（GPT-4V，patch 级）、PRET（切片级，示例带标注） |
 | 05–09 | Internal adapter：总览对比表、AdaptFormer、ExPLoRA、SLR、PathPT |
 | 10–12 | Test-time training：方法、两种辅助任务、负结果（无标注 ≠ 免费） |
 | 13–14 | 我的想法：三条可选路线（A/B/C）与可验证的跨中心 adapter 构想 |
